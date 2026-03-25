@@ -147,8 +147,8 @@
       <div class="topbar">
         <div class="crumb">H2O Admin / <b>总览</b></div>
         <div class="topActions">
-          <button class="btnGhost" type="button">👁️ 预览</button>
-          <button class="btnPrimary" type="button">💾 保存并发布</button>
+          <button class="btnGhost" id="btnPreview" type="button">👁️ 预览</button>
+          <button class="btnPrimary" id="btnPublish" type="button">💾 保存并发布</button>
         </div>
       </div>
 
@@ -195,12 +195,27 @@
         <div class="card">
           <div class="help">
             <ol style="margin:0; padding-left:18px">
-              <li>左侧选择要修改的模块</li>
-              <li>修改内容后点击右上角 <b style="color:var(--green)">保存并发布</b></li>
-              <li>系统自动将 <code>data.json</code> 写入 GitHub</li>
-              <li>前端网页约 <b>1 分钟</b>后自动显示最新内容</li>
-              <li>图片请先上传到 GitHub repo 的 <code>image/</code> 文件夹</li>
+              <li>先在电脑启动后端：<code>h2o-admin-server\\run_admin_server.bat</code></li>
+              <li>后端启动后，打开 <code>http://127.0.0.1:8092/health</code> 应该显示 ok</li>
+              <li>然后在这里点击右上角 <b style="color:var(--green)">保存并发布</b></li>
+              <li>系统会把 <code>data.json</code> 写入 GitHub：<code>h2osnooker88-design/H2O-Snooker</code></li>
+              <li>前端网页约 <b>1 分钟</b>后自动显示最新内容（手机可能有缓存，记得强刷）</li>
             </ol>
+            <div style="margin-top:12px;">
+              <div style="color:#8FB9FF; font-weight:900; margin-bottom:6px;">发布内容（JSON）</div>
+              <textarea id="payload" style="width:100%; min-height:180px; resize:vertical; padding:12px; border-radius:14px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.25); color:var(--txt); font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size:12px; line-height:1.5;">{
+  "banner": {
+    "enabled": true,
+    "tag": "即将开赛",
+    "title": "H2O Snooker Championship 2026 · 3/4/5 April",
+    "subtitle": "报名费 RM35 · 名额有限！",
+    "ctaText": "立即报名 →",
+    "ctaUrl": "https://signup.h2osnkctst.com/"
+  }
+}
+</textarea>
+              <div id="publishResult" style="margin-top:10px; color:var(--muted); font-size:12px;"></div>
+            </div>
           </div>
         </div>
       </section>
@@ -213,10 +228,59 @@
     <div class="bottomBar">
       <div class="status"><span class="statusDot"></span><span>有未保存的修改</span></div>
       <div class="barActions">
-        <button class="btnGhost" type="button">撤销修改</button>
-        <button class="btnPrimary" type="button">💾 保存并发布到 GitHub</button>
+        <button class="btnGhost" id="btnUndo" type="button">撤销修改</button>
+        <button class="btnPrimary" id="btnPublishBottom" type="button">💾 保存并发布到 GitHub</button>
       </div>
     </div>
   </div>
+  <script>
+    const serverBase = 'http://127.0.0.1:8092';
+
+    const payloadEl = document.getElementById('payload');
+    const resEl = document.getElementById('publishResult');
+    const btnPublish = document.getElementById('btnPublish');
+    const btnPublishBottom = document.getElementById('btnPublishBottom');
+    const btnUndo = document.getElementById('btnUndo');
+
+    let lastPayload = payloadEl ? payloadEl.value : '';
+
+    function setRes(msg, ok){
+      if(!resEl) return;
+      resEl.style.color = ok ? '#86efac' : '#fca5a5';
+      resEl.textContent = msg;
+    }
+
+    async function publish(){
+      if(!payloadEl) return;
+      let data;
+      try{ data = JSON.parse(payloadEl.value); }
+      catch(e){ setRes('JSON 格式错误：' + e.message, false); return; }
+
+      setRes('发布中…', true);
+      try{
+        const r = await fetch(serverBase + '/publish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        const j = await r.json().catch(()=> ({}));
+        if(!r.ok || !j.ok){
+          setRes('发布失败：' + (j.error || r.status), false);
+          return;
+        }
+        setRes('发布成功 ✅ commit=' + (j.commit_sha || '') , true);
+        lastPayload = payloadEl.value;
+      }catch(err){
+        setRes('发布失败（后端没启动或被拦截）：' + err.message, false);
+      }
+    }
+
+    if(btnPublish) btnPublish.addEventListener('click', publish);
+    if(btnPublishBottom) btnPublishBottom.addEventListener('click', publish);
+    if(btnUndo) btnUndo.addEventListener('click', function(){
+      if(payloadEl) payloadEl.value = lastPayload;
+      setRes('已撤销到上一次成功发布的内容', true);
+    });
+  </script>
 </body>
 </html>
